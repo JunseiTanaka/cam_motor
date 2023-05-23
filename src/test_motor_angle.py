@@ -2,24 +2,10 @@ import cv2
 import sys
 import numpy as np
 import math
-import RPi.GPIO as GPIO
-import time
-
-GPIO.setmode(GPIO.BCM)
-mode = GPIO.getmode()
-print(mode)
-
-IN1 = 27
-
-PWM = 13
-
-GPIO.setup(PWM, GPIO.OUT)
-GPIO.setup(IN1, GPIO.OUT)
-pwm = GPIO.PWM(PWM, 20)
 
 delay = 1
 window_name = 'frame'
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(1)
 cap.set(cv2.CAP_PROP_FOURCC, cv2.VideoWriter_fourcc('H', '2', '6', '4'));
 
 if not cap.isOpened():
@@ -30,14 +16,7 @@ upper_color = np.array([50, 255, 255])
 kernel = np.ones((5,5),np.uint8)
 
 try:
-    user_input = int(input("input goal angle (degree)"))
-    GPIO.output(IN1, 1)
-    
     while True:
-        if user_input > 360 or user_input < 0:
-            print("you need to input within 0~360\n")
-            break
-        
         ret, frame = cap.read()
         # フレームの幅と高さを取得
         height, width = frame.shape[:2]
@@ -88,19 +67,7 @@ try:
             if y2 <= y0:
                 print('deg='+str(round(theta,2)))
             else:
-                theta = 180 - theta +180
-                print('deg='+str(round(theta,2)))
-
-            if theta > user_input-5 and theta < user_input+5:
-                print("reached goal\n Do you want to continue? if yes, -> y")
-                pwm.start(0)
-                ans=input()
-                if ans == "y":
-                    user_input = int(input("input goal angle (degree)"))
-                else:
-                    break
-            else:
-                pwm.start(2)
+                print('deg='+str(180-round(theta,2)+180))
 
             if cv2.waitKey(delay) & 0xFF == ord('q'):
                 break
@@ -109,14 +76,8 @@ try:
             cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
 
 except KeyboardInterrupt:
-    pwm.ChangeDutyCycle(0)
-    
+    pass
 
 finally:
-    GPIO.cleanup(PWM)
-    GPIO.cleanup(IN1)
-    
-    print("finished cleary")
-    
-cap.release()
-cv2.destroyWindow(window_name)
+    cap.release()
+    cv2.destroyWindow(window_name)
