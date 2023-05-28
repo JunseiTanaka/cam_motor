@@ -154,22 +154,23 @@ while i<100:
         #画像の表示    
         cv2.imshow("frame",frame)
         
-        cv2.imshow("right eye trim",r_frame_trim_resize)
-        cv2.imshow("left eye trim",l_frame_trim_resize)
+        #cv2.imshow("right eye trim",r_frame_trim_resize)
+        #cv2.imshow("left eye trim",l_frame_trim_resize)
 
-        cv2.imshow("right eye black white",r_black_mask)
-        cv2.imshow("left eye black white",l_black_mask)
+        #cv2.imshow("right eye black white",r_black_mask)
+        #cv2.imshow("left eye black white",l_black_mask)
 
 
         #ウィンドウの配置変更
         cv2.moveWindow('frame', 200,0)
-        cv2.moveWindow('right eye trim', 100,100)
-        cv2.moveWindow('left eye trim', 500,100)
-        cv2.moveWindow('right eye black white', 100,400)
-        cv2.moveWindow('left eye black white', 500,400)
+        #cv2.moveWindow('right eye trim', 100,100)
+        #cv2.moveWindow('left eye trim', 500,100)
+        #cv2.moveWindow('right eye black white', 100,400)
+        #cv2.moveWindow('left eye black white', 500,400)
 
     key = cv2.waitKey(1)
     if key ==27:
+        cap.release()
         break
 
 cv2.destroyAllWindows()

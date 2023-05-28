@@ -5,7 +5,7 @@ GPIO.setmode(GPIO.BCM)
 mode = GPIO.getmode()
 print(mode)
 
-IN1 = 27
+IN1 = 17
 PWM = 13
 
 GPIO.setup(PWM, GPIO.OUT)
@@ -15,7 +15,7 @@ pwm = GPIO.PWM(PWM, 20)
 try:
     GPIO.output(IN1, 1)
     while True:
-        pwm.start(2)        
+        pwm.start(5)        
 
 except KeyboardInterrupt:
     pwm.ChangeDutyCycle(0)
