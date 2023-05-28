@@ -133,7 +133,7 @@ class MortorControll:
         
         self.set_gpio()
         
-        self.Kp = 0.05
+        self.Kp = 0.04
         self.Ki = 0.001
         self.Kd = 0.3
 
@@ -178,6 +178,15 @@ class Visualizer:
         
         cv2.imshow(window_name, img)
 
+    def evaluation_graph(self, goal, x_list, y_list, DEG_THRESH):
+        plt.hlines([goal + DEG_THRESH], 0, x_list[-1], "red", linestyle="dashed", label="break range")
+        plt.hlines([goal - DEG_THRESH], 0, x_list[-1], "red", linestyle="dashed")
+        plt.plot(x_list, y_list, color="b")
+        plt.ylim(0, 200)
+        plt.ylabel("degree")
+        plt.xlabel("loop count")
+        plt.show()
+
 
 def main():
     camera = Camera()
@@ -185,6 +194,9 @@ def main():
     visual = Visualizer()
     first_loop_flag = True
     sum_e = 0
+    i = 0
+    x_list = []
+    y_list = []
     
     try:
         goal_angle = camera.input_goal_angle()
@@ -214,10 +226,6 @@ def main():
                 if angle == None: # Do not write "if !angle:" to do not "continue" when angle is 0.
                     continue
 
-                if camera.is_within_goal_angle(goal_angle, angle):
-                    motor.goal_event()
-                    break
-
                 if not first_loop_flag:
                     dt = t - b_t
                     e = goal_angle - angle
@@ -232,11 +240,17 @@ def main():
                 b_t = t
                 b_e = e
                 sum_e += e
+                x_list.append(i)
+                y_list.append(angle)
                 visual.image_show(mask, x0, y0, x1, y1, x2, y2)
-
-                if cv2.waitKey(1) & 0xFF == ord('q'):
+                i += 1
+                
+                if camera.is_within_goal_angle(goal_angle, angle):
+                    motor.goal_event()
                     break
                 
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break    
                 
             else:
                 cap.set(cv2.CAP_PROP_POS_FRAMES, 0)
@@ -245,9 +259,10 @@ def main():
         pass
 
     finally:
-        
         camera.clear_capture()
         motor.clean_gpio()
+        visual.evaluation_graph(goal_angle, x_list, y_list, camera.DEG_THRESH)
+
         
 
 if __name__ == "__main__":
