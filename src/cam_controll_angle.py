@@ -48,14 +48,14 @@ class Camera:
             return False
         
     def input_goal_angle(self):
-        goal_angle = input("input goal angle(0~180): ")
+        goal_angle = input("input goal angle(0~179): ")
         if not self.is_integer(goal_angle):
             print("Please input int value")
             self.input_goal_angle()
             
         goal_angle = int(goal_angle)
-        if 0 > goal_angle or 180 < goal_angle:
-            print("Please input within 0 ~ 180")
+        if 0 > goal_angle or 179 < goal_angle:
+            print("Please input within 0 ~ 179")
             self.input_goal_angle()
 
         return goal_angle
@@ -114,6 +114,7 @@ class Camera:
 
     def is_within_goal_angle(self, goal_angle, angle):
         if (angle >= goal_angle - self.DEG_THRESH) and (angle <= goal_angle + self.DEG_THRESH):
+            print("Reached goal")
             return True
 
         return False
@@ -132,11 +133,14 @@ class MortorControll:
         self.__PWM = 13
         
         self.set_gpio()
-        
-        self.Kp = 0.04
-        self.Ki = 0.001
-        self.Kd = 0.3
 
+        self.Kp = 0.085
+        self.Ki = 0.0015
+        self.Kd = 0.5
+        
+        self.PID_MAX_THRESH = 12
+        self.PID_MIN_THRESH = 3
+        
     def set_gpio(self):
         GPIO.setmode(GPIO.BCM)
 
@@ -154,14 +158,24 @@ class MortorControll:
         i = self.Ki * sum_e
         d = self.Kd * (e - b_e) / dt
         
-        return max(1, min(10, p + i+ d)) 
-
-    def update_data_list(self, e):
-        pass
+        return max(self.PID_MIN_THRESH, min(self.PID_MAX_THRESH, p + i+ d)) 
     
     def goal_event(self):
         self.pwm.ChangeDutyCycle(0)
-        print("goal")
+
+    def safty(self, goal_angle, angle, total_time, DEG_THRESH):
+        if angle > goal_angle + DEG_THRESH:
+            print("Over goal degree")
+            return True
+
+        if total_time > 5:
+            print("Error: over 5 sec. Couldn't reach the goal.")
+            return True
+
+        return False
+
+    def return_pid_gain(self):
+        return [self.Kp, self.Ki, self.Kd]
         
     def clean_gpio(self):
         self.pwm.ChangeDutyCycle(0)
@@ -178,13 +192,33 @@ class Visualizer:
         
         cv2.imshow(window_name, img)
 
-    def evaluation_graph(self, goal, x_list, y_list, DEG_THRESH):
-        plt.hlines([goal + DEG_THRESH], 0, x_list[-1], "red", linestyle="dashed", label="break range")
-        plt.hlines([goal - DEG_THRESH], 0, x_list[-1], "red", linestyle="dashed")
-        plt.plot(x_list, y_list, color="b")
-        plt.ylim(0, 200)
-        plt.ylabel("degree")
-        plt.xlabel("loop count")
+    def evaluation_graph(self, goal, i_list, angle_list, pid_list, DEG_THRESH, PID_MAX_THRESH, PID_MIN_THRESH, pid_gain_list, total_time):
+        fig = plt.figure()
+        ax1 = fig.add_subplot(2,1,1)
+        ax2 = fig.add_subplot(2,1,2)
+        
+        ax1.hlines([goal + DEG_THRESH], 0, i_list[-1], "black", linestyle="dashed")
+        ax1.hlines([goal - DEG_THRESH], 0, i_list[-1], "black", linestyle="dashed")
+        ax1.plot(i_list, angle_list, color="b")
+        ax1.set_ylim(0, 200)
+        ax1.set_ylabel("degree")
+        ax1.set_xlabel("loop count")
+        ax1.text(0.99, 0.11, "Final angle " + str(angle_list[-1]), va="bottom", ha="right", transform=ax1.transAxes)
+        ax1_txt = "Total time " + str(round(total_time, 4)) + " sec"
+        ax1.text(0.99, 0.01, ax1_txt, va="bottom", ha="right", transform=ax1.transAxes)
+
+
+        ax2.plot(i_list, pid_list, color="r")
+        ax2.set_ylim(0, PID_MAX_THRESH + int(PID_MAX_THRESH/2))
+        ax2.set_ylabel("PID value")
+        ax2.set_xlabel("loop count")
+        ax2.hlines([PID_MIN_THRESH], 0, i_list[-1], "black", linestyle="dashed")
+        ax2.hlines([PID_MAX_THRESH], 0, i_list[-1], "black", linestyle="dashed")
+        ax2.text(0.99, 0.99, "P gain " + str(pid_gain_list[0]), va="top", ha="right", transform=ax2.transAxes)
+        ax2.text(0.99, 0.90, "I gain " + str(pid_gain_list[1]), va="top", ha="right", transform=ax2.transAxes)
+        ax2.text(0.99, 0.81, "D gain " + str(pid_gain_list[2]), va="top", ha="right", transform=ax2.transAxes)
+
+        plt.tight_layout()
         plt.show()
 
 
@@ -195,8 +229,12 @@ def main():
     first_loop_flag = True
     sum_e = 0
     i = 0
-    x_list = []
-    y_list = []
+    i_list = []
+    angle_list = []
+    pid_list = []
+    pid = 0
+    total_time = 0
+    t_t = time.time()
     
     try:
         goal_angle = camera.input_goal_angle()
@@ -216,9 +254,6 @@ def main():
                     if first_loop_flag: #defined initial coordinate as x1, y1
                         x1 = x2
                         y1 = y2
-                        
-                        print("defined initial coordinate as: ", x1, y1)
-                        
                 else:
                     continue
 
@@ -229,9 +264,9 @@ def main():
                 if not first_loop_flag:
                     dt = t - b_t
                     e = goal_angle - angle
-                    p = motor.calc_pid(e, b_e, sum_e, dt)
-                    print(angle, p)
-                    motor.rotate(p)
+                    pid = motor.calc_pid(e, b_e, sum_e, dt)
+                    #print(angle, pid)
+                    motor.rotate(pid)
 
                 if first_loop_flag:
                     first_loop_flag = False
@@ -240,13 +275,15 @@ def main():
                 b_t = t
                 b_e = e
                 sum_e += e
-                x_list.append(i)
-                y_list.append(angle)
+                i_list.append(i)
+                angle_list.append(angle)
+                pid_list.append(pid)
                 visual.image_show(mask, x0, y0, x1, y1, x2, y2)
                 i += 1
                 
-                if camera.is_within_goal_angle(goal_angle, angle):
+                if camera.is_within_goal_angle(goal_angle, angle) or motor.safty(goal_angle, angle, total_time, camera.DEG_THRESH):
                     motor.goal_event()
+                    total_time = time.time() - t_t
                     break
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -261,7 +298,7 @@ def main():
     finally:
         camera.clear_capture()
         motor.clean_gpio()
-        visual.evaluation_graph(goal_angle, x_list, y_list, camera.DEG_THRESH)
+        visual.evaluation_graph(goal_angle, i_list, angle_list, pid_list, camera.DEG_THRESH, motor.PID_MAX_THRESH, motor.PID_MIN_THRESH, motor.return_pid_gain(), total_time)
 
         
 
