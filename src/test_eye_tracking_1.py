@@ -2,11 +2,11 @@ import cv2
 import numpy as np
 import dlib
 
-cap = cv2.VideoCapture(0)
+cap = cv2.VideoCapture(2)
 
 detector = dlib.get_frontal_face_detector()
 predictor = dlib.shape_predictor("shape_predictor_68_face_landmarks.dat")
-i = 0
+
 
 def get_cog(mask):
     contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)    
@@ -38,7 +38,7 @@ def trim(frame):
 lower_black = np.array([0, 0, 0], dtype=np.uint8)
 upper_black = np.array([180, 255, 30], dtype=np.uint8)
 
-while i<100:
+while True:
     _, frame = cap.read()
     
     #グレースケール化
@@ -152,7 +152,7 @@ while i<100:
                 break
         """
         #画像の表示    
-        cv2.imshow("frame",frame)
+        cv2.imshow("frame",gray)
         
         #cv2.imshow("right eye trim",r_frame_trim_resize)
         #cv2.imshow("left eye trim",l_frame_trim_resize)

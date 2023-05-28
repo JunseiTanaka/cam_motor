@@ -48,14 +48,14 @@ class Camera:
             return False
         
     def input_goal_angle(self):
-        goal_angle = input("input goal angle(0~179): ")
+        goal_angle = input("input goal angle(0~{}): ".format(180-self.DEG_THRESH))
         if not self.is_integer(goal_angle):
             print("Please input int value")
             self.input_goal_angle()
             
         goal_angle = int(goal_angle)
-        if 0 > goal_angle or 179 < goal_angle:
-            print("Please input within 0 ~ 179")
+        if 0 > goal_angle or 180-self.DEG_THRESH < goal_angle:
+            print("Please input within 0~{}".format(180-self.DEG_THRESH))
             self.input_goal_angle()
 
         return goal_angle
@@ -134,11 +134,11 @@ class MortorControll:
         
         self.set_gpio()
 
-        self.Kp = 0.085
-        self.Ki = 0.0015
+        self.Kp = 0.08
+        self.Ki = 0.001
         self.Kd = 0.5
         
-        self.PID_MAX_THRESH = 12
+        self.PID_MAX_THRESH = 10
         self.PID_MIN_THRESH = 3
         
     def set_gpio(self):
@@ -168,8 +168,8 @@ class MortorControll:
             print("Over goal degree")
             return True
 
-        if total_time > 5:
-            print("Error: over 5 sec. Couldn't reach the goal.")
+        if total_time > 10:
+            print("Error: over 10 sec. Couldn't reach the goal.")
             return True
 
         return False
@@ -234,12 +234,14 @@ def main():
     pid_list = []
     pid = 0
     total_time = 0
-    t_t = time.time()
+    
     
     try:
         goal_angle = camera.input_goal_angle()
+        t_t = time.time()
         while True:
             t = time.time()
+            total_time = t - t_t
             
                 
             ret, frame = camera.read_frame()
@@ -265,25 +267,26 @@ def main():
                     dt = t - b_t
                     e = goal_angle - angle
                     pid = motor.calc_pid(e, b_e, sum_e, dt)
-                    #print(angle, pid)
+                    print(angle, pid)
                     motor.rotate(pid)
 
                 if first_loop_flag:
                     first_loop_flag = False
                     e = goal_angle - angle
                     
-                b_t = t
-                b_e = e
+                b_t, b_e = t, e
                 sum_e += e
+                
                 i_list.append(i)
                 angle_list.append(angle)
                 pid_list.append(pid)
+
                 visual.image_show(mask, x0, y0, x1, y1, x2, y2)
+
                 i += 1
                 
-                if camera.is_within_goal_angle(goal_angle, angle) or motor.safty(goal_angle, angle, total_time, camera.DEG_THRESH):
+                if motor.safty(goal_angle, angle, total_time, camera.DEG_THRESH) or camera.is_within_goal_angle(goal_angle, angle):
                     motor.goal_event()
-                    total_time = time.time() - t_t
                     break
                 
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -298,7 +301,16 @@ def main():
     finally:
         camera.clear_capture()
         motor.clean_gpio()
-        visual.evaluation_graph(goal_angle, i_list, angle_list, pid_list, camera.DEG_THRESH, motor.PID_MAX_THRESH, motor.PID_MIN_THRESH, motor.return_pid_gain(), total_time)
+        visual.evaluation_graph(goal_angle,
+                                i_list,
+                                angle_list,
+                                pid_list,
+                                camera.DEG_THRESH,
+                                motor.PID_MAX_THRESH,
+                                motor.PID_MIN_THRESH,
+                                motor.return_pid_gain(),
+                                total_time
+                                )
 
         
 
