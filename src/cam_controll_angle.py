@@ -9,11 +9,16 @@ from matplotlib import pyplot as plt
 
 class Camera:
     def __init__(self):
-        self.lower_color = np.array([20, 70, 50])    #yellow
-        self.upper_color = np.array([50, 255, 255])  #yellow
+        self.lower_yellow_color = np.array([20, 70, 50])    
+        self.upper_yellow_color = np.array([100, 255, 255])
+
+        self.lower_blue_color = np.array([220, 140, 30])    
+        self.upper_blue_color = np.array([255, 180, 90])
+
         self.kernel = np.ones((5,5),np.uint8)
 
         self.DEG_THRESH = 2
+        
         angle = 0
         goal_angle = 0
         self.first_loop_flag = True
@@ -61,15 +66,16 @@ class Camera:
         return goal_angle
     
     def center_coordinate(self, frame):
-        height, width = frame.shape[:2]
-        x0 = width // 2
-        y0 = height // 2
+        mask = cv2.inRange(frame, self.lower_blue_color, self.upper_blue_color)
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        x0, y0 = self.calc_cog(contours)
 
         return x0, y0
+ 
 
     def masking(self, frame):
         hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-        mask = cv2.inRange(hsv, self.lower_color, self.upper_color)
+        mask = cv2.inRange(hsv, self.lower_yellow_color, self.upper_yellow_color)
 
         return mask
 
@@ -131,11 +137,12 @@ class MortorControll:
         #TODO: add program what user can choose clockwise or anti-clockwise turn
         self.__IN1 = 17
         self.__PWM = 13
+        self.SAFTY_TIME= 60
         
         self.set_gpio()
 
         self.Kp = 0.08
-        self.Ki = 0.001
+        self.Ki = 0.000
         self.Kd = 0.5
         
         self.PID_MAX_THRESH = 10
@@ -168,7 +175,7 @@ class MortorControll:
             print("Over goal degree")
             return True
 
-        if total_time > 10:
+        if total_time > self.SAFTY_TIME:
             print("Error: over 10 sec. Couldn't reach the goal.")
             return True
 
@@ -239,13 +246,21 @@ def main():
     try:
         goal_angle = camera.input_goal_angle()
         t_t = time.time()
+        
         while True:
             t = time.time()
             total_time = t - t_t
-            
                 
             ret, frame = camera.read_frame()
-            x0, y0 = camera.center_coordinate(frame)
+            if first_loop_flag:
+                x0, y0 = camera.center_coordinate(frame)
+                if (not x0) and (not y0):
+                    print("can't find center", x0, y0)
+                    continue
+                else:
+                    x0 = int(x0)
+                    y0 = int(y0)
+            
             if ret:
                 mask_ = camera.masking(frame)
                 mask = camera.noise_processing(mask_)
@@ -284,7 +299,7 @@ def main():
                 visual.image_show(mask, x0, y0, x1, y1, x2, y2)
 
                 i += 1
-                
+                #if camera.is_within_goal_angle(goal_angle, angle):
                 if motor.safty(goal_angle, angle, total_time, camera.DEG_THRESH) or camera.is_within_goal_angle(goal_angle, angle):
                     motor.goal_event()
                     break
